@@ -1,0 +1,22 @@
+<!-- Ensure your variables are in order -->
+<specification>
+    <TBS type='int' min='1' max='5000'>144</TBS>
+    <SRS type='bool'>0</SRS>
+    <cellId type='int' min='0' max='5000'>45</cellId>
+    <prb_offset type='int' min='0' max='5000'>9</prb_offset>
+    <n_prb type='int' min='0' max='5000'>3</n_prb>
+    <fullSampleIdx type='int' min='0' max='1000000000'>2179305</fullSampleIdx>
+    <fileSampleIdx type='int' min='0' max='1000000000'>13088</fileSampleIdx>
+    <fileIdx type='int' min='0' max='1000000000'>53</fileIdx>
+    <radioType type='bool'>1</radioType> 
+    <direction type='bool'>0</direction>
+    <rntiType type='int' min='0' max='5000'>3</rntiType>
+    <rnti type='int' min='0' max='5000'>50</rnti> 
+    <ueid type='int' min='0' max='5000'>102</ueid> 
+    <isRetx type='bool'>0</isRetx>
+    <crcStatusOK type='bool'>1</crcStatusOK> 
+    <sysFrameNumber type='int' min='0' max='5000'>1</sysFrameNumber>
+    <subFrameNumber type='int' min='0' max='5000'>4</subFrameNumber> 
+    <subframesSinceCaptureStart type='int' min='0' max='5000'>2</subframesSinceCaptureStart>
+    <macpdu type='bytearray' min='2' max='20'>20061F5269C9430B96000000000000000000</macpdu>
+</specification>
