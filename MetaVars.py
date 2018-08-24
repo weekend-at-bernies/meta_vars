@@ -349,6 +349,9 @@ class DataSortSpecVisitor(SimpleXmlTree.XmlTreeVisitor):
         # Invoke the super (XmlTreeVisitor) class constructor:
         super(DataSortSpecVisitor, self).__init__(SimpleXmlTree.XmlTreeVisitorType.breadthfirst)
 
+        # Stack: data bins:
+        #
+
     def has_mv(self, k):
         for mv in self.l_mv:
             if mv.var_n == k:
