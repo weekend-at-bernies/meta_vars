@@ -3,20 +3,16 @@ import sys
 import MetaVars
 import argparse
 
-parser = argparse.ArgumentParser(description='PhantomVars tester')
-parser.add_argument('-i','--input', help='Input file (xml meta-var spec)', required=True, metavar='<input file>')
-parser.add_argument('-o','--output', help='Output file (randomized var output)', required=True, metavar='<output file>')
-parser.add_argument('-s','--seed', help='randomizer seed', required=False, metavar='<seed>')
-parser.add_argument('-n','--count', help='output var count', required=True, metavar='<count>')
+parser = argparse.ArgumentParser(description='MetaVars tester')
+parser.add_argument('-1','--xml1', help='XML meta-vars specification file', required=True, metavar='<xml file 1>')
+parser.add_argument('-2','--xml2', help='XML data sort specification file', required=True, metavar='<xml file 2>')
+parser.add_argument('-i','--input', help='Input data file', required=True, metavar='<input file>')
+parser.add_argument('-o','--output', help='Output directory (cannot already exist)', required=True, metavar='<output dir>')
 args = vars(parser.parse_args())
 
-if args['seed'] is not None:
-    seed = int(args['seed'])
-else:
-    seed = None
-
-mv = MetaVars.MetaVarSpecParser(args['input'], seed)
-mv.generateRandom(args['output'], int(args['count']))
+mv = MetaVars.MetaVarSpecParser(args['xml1'])
+mv.generateOrder(args['input'], args['output'], args['xml2'])
+print "all done!"
 
 
 

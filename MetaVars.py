@@ -10,9 +10,9 @@ class MetaVarSpecParser(object):
 
     def __init__(self, xmlfile, seed=None):
 
-        self.realvars = []
         self.metavars = []
 
+        # Will raise exception if syntax is incorrect:
         xml = SimpleXmlTree.SimpleXmlTree(xmlfile)
         # print xml
 
@@ -49,36 +49,72 @@ class MetaVarSpecParser(object):
         f.close()
 
 
+    # IN: list of real vars: [1, 5, "yo", ...]
+    # OUT: str rep of the real vars: "1 5 yo ..."
+    def realVars2Str(self, l_rv):
+        i = 0
+        s_rv = ""
+        for rv in l_rv:
+            s_rv += "%s "%(self.metavars[i].val2Str(rv))
+            i += 1
+        return s_rv
 
+
+    # IN: str rep of the real vars: "1 5 yo ..."
+    # OUT: list of real vars: [1, 5, "yo", ...]
+    def str2RealVars(self, s_rv):      
+        l_s_rv = s_rv.split()
+        l_rv = []
+        i = 0
+        for s_rv in l_s_rv:
+            mv = self.metavars[i]
+            rv = mv.str2Val(s_rv, mv.var_t)
+            l_rv.append(rv)
+            i += 1
+        return l_rv
+
+
+    # IN: a text file with str rep of real vars, eg:
+    #         "1 5 yo ..."
+    #         "70 2 blah ..."
+    #         "0 0 foo ..."
+    # OUT: returns a list of real vars:
+    #         [[1, 5, "yo", ...],
+    #          [70, 2, "blah", ...],
+    #          [0, 0, "foo", ...],
     def processRealVars(self, infile):
         if not os.path.isfile(infile):
             raise IOError("Error: input file not found: %s"%(infile))
         
         f = open(infile, 'r') 
-        lines1 = f.readlines()
+        lines = f.readlines()
         f.close()
             
-        for line1 in lines1:
-            line = line1.strip()
+        l_rv = []
+        for line in lines:
+            line = line.strip()
             if ( len(line) > 0 ) and ( not line.startswith('#') ):   
-                self.realvars.append(self.processRealVarsStr(line))
+                l_rv.append(self.str2RealVars(line))
+        return l_rv
 
   
-    def processRealVarsStr(self, vars_str):
-        l_v = []
-        l_cv = vars_str.split()
+    def generateOrder2(self, l_rv, outdir, xmlorderspec):
+        if os.path.isdir(outdir):
+            raise IOError("Error: output directory already exists: %s"%(outdir))
+
+        # Will raise exception if there are syntax errors:
+        xml = SimpleXmlTree.SimpleXmlTree(xmlorderspec)
+        # print xml
+
+        # Will raise exception if there are semantic errors:
+        tracer = DataSortSpecVisitor(self.metavars, True)
+        tracer.visit(xml.getRoot())
         
-        if len(l_cv) != len(self.metavars):
-            raise ValueError("Error: expecting %d vars, got %d: %s"%(len(self.metavars), len(l_cv), vars_str))
 
-        i = 0
-        for cv in l_cv:
-            mv = self.metavars[i]
-            v = mv.str2Val(cv, mv.var_t)
-            l_v.append(v)
-            i += 1
 
-        return l_v
+    def generateOrder(self, infile, outdir, xmlorderspec):
+        l_rv = self.processRealVars(infile)
+        return self.generateOrder2(l_rv, outdir, xmlorderspec)
 
 ##########################################################################################################################
 
@@ -298,6 +334,50 @@ class MetaVarSpecTracer(SimpleXmlTree.XmlTreeVisitor):
                     mv.initVal(node.getVal(), mv.var_t)
        
                 self.metavars.append(mv)
+
+
+##########################################################################################################################
+
+# A sample tree visitor implementation for debugging purposes:
+
+class DataSortSpecVisitor(SimpleXmlTree.XmlTreeVisitor):
+
+    def __init__(self, l_mv, semanticOnly=True):
+        self.l_mv = l_mv
+        # Do semantic check only:
+        self.semanticOnly = semanticOnly 
+        # Invoke the super (XmlTreeVisitor) class constructor:
+        super(DataSortSpecVisitor, self).__init__(SimpleXmlTree.XmlTreeVisitorType.breadthfirst)
+
+    def has_mv(self, k):
+        for mv in self.l_mv:
+            if mv.var_n == k:
+                return True
+        return False
+
+    def previsit_breadthfirst(self, node): 
+
+        if not node.isRoot():
+            k = node.getTag()
+            if not self.has_mv(k):
+                raise ValueError("Error: unknown meta-var: %s"%(k))            
+
+            for a in node.getAttrib():                                                  
+                if a == 'type':
+                    a_v = node.getAttribVal(a)
+                    if node.isParent():
+                        if not a_v == 'bin':
+                            raise ValueError("Error: unsupported xml attribute value: %s='%s'"%(a, a_v))   
+                    else:
+                        if not a_v == 'sort':
+                            raise ValueError("Error: unsupported xml attribute value: %s='%s'"%(a, a_v))                    
+                else:
+                    raise ValueError("Error: unsupported xml attribute: %s"%(a))
+
+
+                     
+
+
                      
 
 

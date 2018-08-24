@@ -1,0 +1,28 @@
+<specification>
+
+  <cellId type="bin">
+
+    <rnti type="bin">
+      <fullSampleIdx type="sort"></fullSampleIdx>
+      <fileSampleIdx type="sort"></fileSampleIdx>
+    </rnti>
+
+    <prb_offset type="bin">
+      <n_prb type="bin">
+        <fullSampleIdx type="sort"></fullSampleIdx>
+        <fileSampleIdx type="sort"></fileSampleIdx>
+      </n_prb>
+    </prb_offset>
+
+    <TBS type="bin">
+      <prb_offset type="bin">
+        <n_prb type="bin">
+          <fullSampleIdx type="sort"></fullSampleIdx>
+          <fileSampleIdx type="sort"></fileSampleIdx>
+        </n_prb>
+      </prb_offset>
+    </TBS>
+
+  </cellId>
+
+</specification>
