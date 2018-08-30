@@ -4,85 +4,50 @@ import SimpleXmlTree
 import binascii
 import random
 import string
+import operator
 
+class MetaVariableProcessor(object):
 
-class MetaVarSpecParser(object):
+    # IN: 'xmlfile' : specification of a set of meta variables (ordered)
+    # IN: 'seed' : randomizer seed
+    def __init__(self, xmlfile):
 
-    def __init__(self, xmlfile, seed=None):
-
-        self.metavars = []
-
-        # Will raise exception if syntax is incorrect:
+        # Will raise exception if syntax errors found:
         xml = SimpleXmlTree.SimpleXmlTree(xmlfile)
         # print xml
 
-        # Populate our ordered dictionary
-        tracer = MetaVarSpecTracer(self.metavars)
+        tracer = MetaVarXMLSpecTracer()
+
+        # Will raise exception if semantic errors found:
         tracer.visit(xml.getRoot())
+
+        self.mv_bin = MetaVariableBin(tracer.l_mv)
 
         #print self
         #print self.getRandom()
-
-        if seed is not None:
-            random.seed(seed)
-
+      
     def __str__(self):
-        s = ""
-        for mv in self.metavars:
-            s += "%s\n"%(mv)
-        return s
+        return str(self.mv_bin)
 
 
-    def getRandom(self):
-        s = ""
-        for mv in self.metavars:
-            s += "%s "%(mv.getRandomValAsStr())
-        return s
+    def getRandomBinAsStr(self):
+        return self.mv_bin.getRandomAsStr()
+
+    def getRandomBinAsVal(self):
+        return self.mv_bin.getRandomAsVal()
 
 
-    def generateRandom(self, outfile, count):
-        if os.path.isfile(outfile):
-            raise IOError("Error: output file already exists: %s"%(outfile))
-        f = open(outfile, 'w') 
-        for i in range(1, (count + 1)):
-            f.write(self.getRandom() + "\n") 
-        f.close()
 
 
-    # IN: list of real vars: [1, 5, "yo", ...]
-    # OUT: str rep of the real vars: "1 5 yo ..."
-    def realVars2Str(self, l_rv):
-        i = 0
-        s_rv = ""
-        for rv in l_rv:
-            s_rv += "%s "%(self.metavars[i].val2Str(rv))
-            i += 1
-        return s_rv
-
-
-    # IN: str rep of the real vars: "1 5 yo ..."
-    # OUT: list of real vars: [1, 5, "yo", ...]
-    def str2RealVars(self, s_rv):      
-        l_s_rv = s_rv.split()
-        l_rv = []
-        i = 0
-        for s_rv in l_s_rv:
-            mv = self.metavars[i]
-            rv = mv.str2Val(s_rv, mv.var_t)
-            l_rv.append(rv)
-            i += 1
-        return l_rv
-
-
-    # IN: a text file with str rep of real vars, eg:
+    # IN: a text file where each line represents a MetaVariable bin, eg:
     #         "1 5 yo ..."
     #         "70 2 blah ..."
     #         "0 0 foo ..."
-    # OUT: returns a list of real vars:
+    # OUT: returns a list of a MetaVariable bins:
     #         [[1, 5, "yo", ...],
     #          [70, 2, "blah", ...],
     #          [0, 0, "foo", ...],
-    def processRealVars(self, infile):
+    def getBinsFromFile(self, infile):
         if not os.path.isfile(infile):
             raise IOError("Error: input file not found: %s"%(infile))
         
@@ -90,35 +55,139 @@ class MetaVarSpecParser(object):
         lines = f.readlines()
         f.close()
             
-        l_rv = []
+        l_bin = []
         for line in lines:
             line = line.strip()
             if ( len(line) > 0 ) and ( not line.startswith('#') ):   
-                l_rv.append(self.str2RealVars(line))
-        return l_rv
+                l_v = self.mv_bin.str2Vals(line.split())
+                if l_v is not None:
+                    l_bin.append(l_v)
+                else:
+                    raise ValueError("Error: could not process: %s"%(line))
+        return l_bin
 
-  
-    def generateOrder2(self, l_rv, outdir, xmlorderspec):
+    
+
+
+    # Outputs a file where each line represents a randomized MetaVariable bin, eg:
+    #         "1 5 yo ..."
+    #         "70 2 blah ..."
+    #         "0 0 foo ..."
+    #
+    # IN: 'outfile' : output file (can't exist)
+    # IN: 'count' : the number of lines to output
+    def createRandomsFile(self, outfile, count, seed=None):
+        if seed is not None:
+            random.seed(seed)
+        if os.path.isfile(outfile):
+            raise IOError("Error: output file already exists: %s"%(outfile))
+        f = open(outfile, 'w') 
+        for i in range(1, (count + 1)):
+            f.write((" ").join(self.getRandomBinAsStr()) + "\n")
+        f.close()
+
+
+     
+    # IN: 'infile' : input file where each line is a MetaVariable bin, eg:
+    #         "1 5 yo ..."
+    #         "70 2 blah ..."
+    #         "0 0 foo ..."
+    #
+    # IN: 'outdir' : output directory (can't exist) where to dump ordered MetaVariable bins
+    # IN: 'xmlorderspec' : specification of how to order the MetaVariable bins
+    def createOrder(self, infile, outdir, xmlorderspec):
         if os.path.isdir(outdir):
             raise IOError("Error: output directory already exists: %s"%(outdir))
-
+        l_bin = self.getBinsFromFile(infile)
+        
         # Will raise exception if there are syntax errors:
         xml = SimpleXmlTree.SimpleXmlTree(xmlorderspec)
         # print xml
 
+        # Semantic checker:
         # Will raise exception if there are semantic errors:
-        tracer = DataSortSpecVisitor(self.metavars, True)
-        tracer.visit(xml.getRoot())
+        checker = MetaVarBinsXMLOrderSpecChecker(self.mv_bin)
+        checker.visit(xml.getRoot())
+
+        xxxx = XXXXVisitor(self.mv_bin, l_bin, outdir)
+        xxxx.visit(xml.getRoot())
+
+        #tracer = DataSortSpecVisitor(self.l_mv, l_rv, outdir, True)
+        #tracer.visit(xml.getRoot())
         
 
 
-    def generateOrder(self, infile, outdir, xmlorderspec):
-        l_rv = self.processRealVars(infile)
-        return self.generateOrder2(l_rv, outdir, xmlorderspec)
+    
 
 ##########################################################################################################################
 
+# A bin of unique MetaVariables (basically an abstraction over a list of MetaVariable objects)
+class MetaVariableBin(object):
 
+    # IN: a list of MetaVariable objects (the bin)
+    def __init__(self, l_mv):
+        self.l_mv = l_mv
+
+    def __str__(self):
+        s = ""
+        for mv in self.l_mv:
+            s += "%s\n"%(mv)
+        return s
+
+
+    # IN: list of MetaVariables as strings: ["1", "5", "yo", ..."]
+    # OUT: list of MetaVariables as their proper types: [1, 5, "yo", ...]
+    def str2Vals(self, l_s):  
+        if len(l_s) != len(self.l_mv):
+            return None
+        l_v = []
+        i = 0
+        for s in l_s:
+            mv = self.l_mv[i]
+            l_v.append(mv.str2Val(s, mv.var_t))
+            i += 1
+        return l_v
+
+    # IN: list of MetaVariables as their proper types: [1, 5, "yo", ...]
+    # OUT: list of MetaVariables as strings: ["1", "5", "yo", ..."]
+    def vals2Str(self, l_v):
+        if len(l_v) != len(self.l_mv):
+            return None
+        l_s = []
+        i = 0     
+        for v in l_v:
+            l_s.append(self.l_mv[i].val2Str(v))
+            i += 1
+        return l_s
+
+    # Returns randomized list of MetaVariables as strings: ["1", "5", "yo", ..."]
+    def getRandomAsStr(self):
+        l_s = []
+        for mv in self.l_mv:
+            l_s.append(mv.getRandomAsStr())
+        return l_s
+
+    # Returns randomized list of MetaVariables as their proper types: [1, 5, "yo", ...]
+    def getRandomAsVal(self):
+        l_v = []
+        for mv in self.l_mv:
+            l_v.append(mv.getRandomAsVal())
+        return l_v
+
+
+    # Returns the 0-based index of MetaVariable in the bin
+    # given its name
+    def get_mv_idx(self, var_n):
+        i = 0
+        for mv in self.l_mv:
+            if mv.var_n == var_n:
+                return i
+            i+=1
+        return -1
+   
+##########################################################################################################################
+
+# A single MetaVariable
 class MetaVariable(object):
 
     def __init__(self, name):
@@ -262,7 +331,7 @@ class MetaVariable(object):
         return (t == bytearray)
 
 
-    def getRandomVal(self):
+    def getRandomAsVal(self):
         if not self.isBool(self.var_t):
             if (None is self.var_min) or (None is self.var_max):
                 raise ValueError("Error: metavar %s: no 'min' and/or 'max' limitations have been defined"%(self.var_n, self.var_max))
@@ -278,20 +347,20 @@ class MetaVariable(object):
         else:
             raise ValueError("Error: metavar %s: type unknown"%(self.var_n, self.var_max))
 
-    def getRandomValAsStr(self):
-        return self.val2Str(self.getRandomVal())
+    def getRandomAsStr(self):
+        return self.val2Str(self.getRandomAsVal())
 
 ##########################################################################################################################
 
 # A sample tree visitor implementation for debugging purposes:
 
-class MetaVarSpecTracer(SimpleXmlTree.XmlTreeVisitor):
+class MetaVarXMLSpecTracer(SimpleXmlTree.XmlTreeVisitor):
 
-    def __init__(self, metavars):
-        self.metavars = metavars
+    def __init__(self):
+        self.l_mv = []
         self.index = 0
         # Invoke the super (XmlTreeVisitor) class constructor:
-        super(MetaVarSpecTracer, self).__init__(SimpleXmlTree.XmlTreeVisitorType.breadthfirst)
+        super(MetaVarXMLSpecTracer, self).__init__(SimpleXmlTree.XmlTreeVisitorType.breadthfirst)
 
     def previsit_breadthfirst(self, node): 
         if not node.isRoot():
@@ -306,7 +375,7 @@ class MetaVarSpecTracer(SimpleXmlTree.XmlTreeVisitor):
             else:
                 # k == MYINTEGER (the name of the variable we are specifying) 
                 k = node.getTag()
-                for mv in self.metavars:
+                for mv in self.l_mv:
                     if k == mv.var_n:
                         # Make sure there isn't already a variable called MYINTEGER
                         raise ValueError("Error: meta-variable already defined: %s"%(k))
@@ -333,53 +402,262 @@ class MetaVarSpecTracer(SimpleXmlTree.XmlTreeVisitor):
                 if node.hasVal():
                     mv.initVal(node.getVal(), mv.var_t)
        
-                self.metavars.append(mv)
+                self.l_mv.append(mv)
 
+
+##########################################################################################################################
+
+# Performs semantic check only over XML
+class MetaVarBinsXMLOrderSpecChecker(SimpleXmlTree.XmlTreeVisitor):
+
+    def __init__(self, mv_bin):
+        self.mv_bin = mv_bin
+
+        # Invoke the super (XmlTreeVisitor) class constructor:
+        super(MetaVarBinsXMLOrderSpecChecker, self).__init__(SimpleXmlTree.XmlTreeVisitorType.depthfirst)
+
+
+    def previsit_depthfirst(self, node): 
+
+        if not node.isRoot():
+           # print "PRE: %s"%(node)
+            if self.mv_bin.get_mv_idx(node.getTag()) < 0:
+                raise ValueError("Error: unknown meta-variable: %s"%(node.getTag()))            
+
+            for a in node.getAttrib():                                                  
+                if a == 'type':
+                    a_v = node.getAttribVal(a)
+                    if a_v == 'bin':
+                        pass
+                    elif a_v == 'sort':
+                        pass
+                    else:
+                        raise ValueError("Error: unsupported xml attribute value: type='%s'"%(a_v))               
+                else:
+                    raise ValueError("Error: unsupported xml attribute: %s"%(a))
+
+    def postvisit_depthfirst(self, node): 
+        #print "POST: %s"%(node)
+        pass
+
+# Example:
+#
+#PRE: <cellId type='bin'></cellId>
+#PRE: <rnti type='bin'></rnti>
+#PRE: <fullSampleIdx type='sort'></fullSampleIdx>
+#POST: <fullSampleIdx type='sort'></fullSampleIdx>
+#PRE: <fileSampleIdx type='sort'></fileSampleIdx>
+#POST: <fileSampleIdx type='sort'></fileSampleIdx>
+#POST: <rnti type='bin'></rnti>
+#PRE: <prb_offset type='bin'></prb_offset>
+#PRE: <n_prb type='bin'></n_prb>
+#PRE: <fullSampleIdx type='sort'></fullSampleIdx>
+#POST: <fullSampleIdx type='sort'></fullSampleIdx>
+#PRE: <fileSampleIdx type='sort'></fileSampleIdx>
+#POST: <fileSampleIdx type='sort'></fileSampleIdx>
+#POST: <n_prb type='bin'></n_prb>
+#POST: <prb_offset type='bin'></prb_offset>
+#PRE: <TBS type='bin'></TBS>
+#PRE: <prb_offset type='bin'></prb_offset>
+#PRE: <n_prb type='bin'></n_prb>
+#PRE: <fullSampleIdx type='sort'></fullSampleIdx>
+#POST: <fullSampleIdx type='sort'></fullSampleIdx>
+#PRE: <fileSampleIdx type='sort'></fileSampleIdx>
+#POST: <fileSampleIdx type='sort'></fileSampleIdx>
+#POST: <n_prb type='bin'></n_prb>
+#POST: <prb_offset type='bin'></prb_offset>
+#POST: <TBS type='bin'></TBS>
+#POST: <cellId type='bin'></cellId>
+
+
+##########################################################################################################################
+
+
+
+# BLAH
+class XXXXVisitor(SimpleXmlTree.XmlTreeVisitor):
+
+    def __init__(self, mv_bin, l_bin, outdir):
+        self.mv_bin = mv_bin
+        self.l_bin = l_bin
+        self.outdir = outdir
+
+        super(XXXXVisitor, self).__init__(SimpleXmlTree.XmlTreeVisitorType.breadthfirst)
+
+
+    def previsit_breadthfirst(self, node): 
+        print node
+        pass
+
+    def postvisit_breadthfirst(self, node): 
+        print node
+        pass
 
 ##########################################################################################################################
 
 # A sample tree visitor implementation for debugging purposes:
 
+# SEMANTIC CHECK ONLY
 class DataSortSpecVisitor(SimpleXmlTree.XmlTreeVisitor):
 
-    def __init__(self, l_mv, semanticOnly=True):
-        self.l_mv = l_mv
-        # Do semantic check only:
-        self.semanticOnly = semanticOnly 
+    def __init__(self, metavars, l_rv, outdir, semanticOnly):
+        self.stack = []
+        self.data = l_rv
+        self.l_mv = metavars
+        self.semanticOnly = semanticOnly
+
+        #if not semanticOnly:          
+        #    self.stack.append(l_rv)
+            #self.fs = {}
+            #self.current_fs = None
+
+            #self.outdir_stack = []
+            #self.l_rv_stack = []
+            #self.l_rv_stack.append(l_mv)
+            #self.outdir_stack.append(outdir)
+
         # Invoke the super (XmlTreeVisitor) class constructor:
-        super(DataSortSpecVisitor, self).__init__(SimpleXmlTree.XmlTreeVisitorType.breadthfirst)
+        super(DataSortSpecVisitor, self).__init__(SimpleXmlTree.XmlTreeVisitorType.depthfirst)
 
         # Stack: data bins:
-        #
+        # zzz
 
-    def has_mv(self, k):
-        for mv in self.l_mv:
-            if mv.var_n == k:
-                return True
+    
+
+    # IN: l_rv: a list of real vars:
+    #            [[1, 5, "yo", ...],          <--- a single rv
+    #             [70, 2, "blah", ...],
+    #             [0, 0, "foo", ...],
+    #
+    # Sort l_rv by ascending rv[rv_idx]
+    #
+    # OUT: l_rv_sorted: [rv0, rv1, rv2 ...] 
+    #
+    def doSort(self, l_rv, rv_idx):
+        # ASCENDING (invoke 'sorted(... , doReverse=True)' for descending order)
+        return sorted(l_rv, key=operator.itemgetter(rv_idx))
+
+
+    # IN: l_rv: a list of rv:
+    #            [[1, 5, "yo", ...],          <--- a single rv
+    #             [70, 2, "blah", ...],
+    #             [0, 0, "foo", ...],
+    #
+    # Split l_rv into bins of equivalent: rv[rv_idx]
+    #
+    # OUT: bins{rv[rv_idx]} returns [rv, rv, rv ...]
+    #
+    def createBins(self, l_rv, rv_idx):       
+        #node.bins = []
+        bins = {}
+        for rv in l_rv:
+            if rv[rv_idx] in bins:
+                (bins[rv[rv_idx]]).append(rv)
+            else:
+                bins[rv[rv_idx]] = [rv]
+        return bins
+        #for k in bins:
+        #    node.bins.append(bins[k])        
+
+
+    # Does the input data represent a bin of rvs?
+    #            [[1, 5, "yo", ...],          <--- a single rv
+    #             [70, 2, "blah", ...],
+    #             [0, 0, "foo", ...], 
+    #
+    def is_l_rv(self, data):
+        if type(data) is list:
+           if len(data) > 0:
+               if type(data[0]) is list:
+                   return True
         return False
 
-    def previsit_breadthfirst(self, node): 
+
+    def doPreSortWork(self, rv_idx):
+        data = self.stack.pop()
+ 
+    
+    def doPreBinWork(self, rv_idx):
+        # Push a copy of self.data onto stack:
+        self.stack.append(self.data)
+        
+        # Now we are free to blow away self.data:
+        bins = self.createBins(data, rv_idx)
+         
+
+        #data = self.stack.pop()
+        # 1st bin
+        # bin inside bin
+        # bin inside sort
+        #if type(data) is list:
+        #    bins = self.createBins(data, rv_idx)
+        #elif type(data) is dict:
+            
+ 
+        
+ 
+
+
+
+
+    def previsit_depthfirst(self, node): 
+
 
         if not node.isRoot():
-            k = node.getTag()
-            if not self.has_mv(k):
-                raise ValueError("Error: unknown meta-var: %s"%(k))            
+           # print "PRE: %s"%(node)
+            rv_idx = self.get_rv_idx(node.getTag())
+            if rv_idx < 0:
+                raise ValueError("Error: unknown meta-var: %s"%(node.getTag()))            
 
             for a in node.getAttrib():                                                  
                 if a == 'type':
                     a_v = node.getAttribVal(a)
-                    if node.isParent():
-                        if not a_v == 'bin':
-                            raise ValueError("Error: unsupported xml attribute value: %s='%s'"%(a, a_v))   
+                    if a_v == 'bin':
+                        if not self.semanticOnly:
+                            self.doPreBinWork(rv_idx)
+                    elif a_v == 'sort':
+                        if not self.semanticOnly:
+                            self.doPreSortWork(rv_idx)
                     else:
-                        if not a_v == 'sort':
-                            raise ValueError("Error: unsupported xml attribute value: %s='%s'"%(a, a_v))                    
+                        raise ValueError("Error: unsupported xml attribute value: type='%s'"%(a_v))
+                   
+                 
+
+
+                    #if node.isParent():
+                    #    if not a_v == 'bin':
+                    #        raise ValueError("Error: unsupported xml attribute value: %s='%s'"%(a, a_v))   
+                    #    if not self.semanticOnly:
+                    #        self.assignBins(l_rv_idx)
+                    #else:
+                    #    if not a_v == 'sort':
+                    #        raise ValueError("Error: unsupported xml attribute value: %s='%s'"%(a, a_v))   
+                    #    if not self.semanticOnly:
+                    #        self.sortBin(l_rv_idx)                 
                 else:
                     raise ValueError("Error: unsupported xml attribute: %s"%(a))
 
+    def postvisit_depthfirst(self, node): 
+        if not node.isRoot():
+            #print "POST: %s"%(node)
+            for a in node.getAttrib():                                                  
+                if node.getAttribVal(a) == 'bin':
+                    l_rv = self.l_rv_stack.pop()
+                    self.outdir_stack.pop()
 
-                     
+    def get_rv_idx(self, var_n):
+        i = 0
+        for mv in self.l_mv:
+            if mv.var_n == var_n:
+                return i
+            i+=1
+        return -1
 
+    #def has_mv(self, k):
+    #    if self.get_l_rv_idx(k) < 0:
+    #        return False
+    #    return True
+        
 
                      
 

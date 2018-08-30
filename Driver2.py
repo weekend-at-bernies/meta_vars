@@ -10,8 +10,8 @@ parser.add_argument('-i','--input', help='Input data file', required=True, metav
 parser.add_argument('-o','--output', help='Output directory (cannot already exist)', required=True, metavar='<output dir>')
 args = vars(parser.parse_args())
 
-mv = MetaVars.MetaVarSpecParser(args['xml1'])
-mv.generateOrder(args['input'], args['output'], args['xml2'])
+mv = MetaVars.MetaVariableProcessor(args['xml1'])
+mv.createOrder(args['input'], args['output'], args['xml2'])
 print "all done!"
 
 

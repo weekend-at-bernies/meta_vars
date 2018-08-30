@@ -15,8 +15,8 @@ if args['seed'] is not None:
 else:
     seed = None
 
-mv = MetaVars.MetaVarSpecParser(args['input'], seed)
-mv.generateRandom(args['output'], int(args['count']))
+mv = MetaVars.MetaVariableProcessor(args['input'])
+mv.createRandomsFile(args['output'], int(args['count']), seed)
 
 
 
