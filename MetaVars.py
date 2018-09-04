@@ -355,7 +355,7 @@ class MetaVariable(object):
 
 ##########################################################################################################################
 
-# A sample tree visitor implementation for debugging purposes:
+# traces input mv spec
 
 class MetaVarXMLSpecTracer(SimpleXmlTree.XmlTreeVisitor):
 
@@ -402,7 +402,7 @@ class MetaVarXMLSpecTracer(SimpleXmlTree.XmlTreeVisitor):
                 if mv.var_t is None:
                     raise ValueError("Error: 'type' attribute not specified: %s"%(k))
                 
-                if node.hasVal():
+                if len(node.getVal()) > 0:
                     mv.initVal(node.getVal(), mv.var_t)
        
                 self.l_mv.append(mv)
