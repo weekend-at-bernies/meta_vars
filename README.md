@@ -9,6 +9,7 @@ Suppose you have a text file like this:
 2 894 "this is another string" 0 1acafebabe
 
 10 120 "this is yet another string" 0 f388bb88bb
+
 ---
 
 Wouldn't it be nice to have a way of automagically ascribing meaning to the 5 "variables" in each line?
