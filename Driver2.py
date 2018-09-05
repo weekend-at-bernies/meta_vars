@@ -12,7 +12,7 @@ args = vars(parser.parse_args())
 
 mv = MetaVars.MetaVariableProcessor(args['xml1'])
 mv.createOrder(args['input'], args['output'], args['xml2'])
-print "%d: all done!"%(os.getpid())
+#print "%d: all done!"%(os.getpid())
 
 
 

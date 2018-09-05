@@ -5,9 +5,6 @@ import binascii
 import random
 import string
 import operator
-import WorkerManager
-from WorkerManager import WorkerType
-from WorkerManager import WorkerStatus
 
 class MetaVariableProcessor(object):
 
@@ -112,8 +109,8 @@ class MetaVariableProcessor(object):
         checker = MetaVarBinsXMLOrderSpecChecker(self.mv_bin)
         checker.visit(xml.getRoot())
 
-        yyyy = YYYYVisitor(self.mv_bin, l_bin, outdir)
-        yyyy.visit(xml.getRoot())
+        leafVisitor = LeafVisitor(self.mv_bin, l_bin, outdir)
+        leafVisitor.visit(xml.getRoot())
 
         #tracer = DataSortSpecVisitor(self.l_mv, l_rv, outdir, True)
         #tracer.visit(xml.getRoot())
@@ -137,6 +134,9 @@ class MetaVariableBin(object):
             s += "%s\n"%(mv)
         return s
 
+
+    def __iter__(self):
+        return iter(self.l_mv)
 
     # IN: list of MetaVariables as strings: ["1", "5", "yo", ..."]
     # OUT: list of MetaVariables as their proper types: [1, 5, "yo", ...]
@@ -162,6 +162,12 @@ class MetaVariableBin(object):
             l_s.append(self.l_mv[i].val2Str(v))
             i += 1
         return l_s
+
+    def vals2UntokenizedStr(self, l_v):
+        s = ""
+        for v in self.vals2Str(l_v):
+            s += "%s "%(v)
+        return s
 
     # Returns randomized list of MetaVariables as strings: ["1", "5", "yo", ..."]
     def getRandomAsStr(self):
@@ -477,224 +483,144 @@ class MetaVarBinsXMLOrderSpecChecker(SimpleXmlTree.XmlTreeVisitor):
 
 
 
-# BLAH
-class YYYYVisitor(SimpleXmlTree.XmlTreeVisitor):
 
-    def __init__(self, mv_bin, l_bin, outdir):
-        self.mv_bin = mv_bin
-        self.curr_l_bin = l_bin
-        self.curr_outdir = outdir
+class LeafVisitor(SimpleXmlTree.XmlTreeVisitor):
 
-        self.target_node = None
+    # l_mv : list of mv : [mv1 , mv2, .. ]
+    # l_bin : list of bins to order [ [...], [...], ... ]
+    # outdir : where to write new 
+    def __init__(self, l_mv, l_bin, outdir):
+        self.l_mv = l_mv
+        self.l_bin = l_bin
+        self.outdir = outdir
 
-        super(YYYYVisitor, self).__init__(SimpleXmlTree.XmlTreeVisitorType.breadthfirst)
+        self.next_node = None
 
-
-
-    def previsit_breadthfirst(self, node): 
-
-        
-        
-        if node.isRoot():
-            self.target_node = node
-
-       # print "CURRENT: %s | TARGET: %s"%(node, self.target_node)
-       # print id(node)
-       # print id(self.target_node)
-        if self.target_node == node:
-           # print "%d: GOT TARGET: %s"%(os.getpid(), node)
-            if node.isParent():
-                #print "PARENT: %s"%(node)
-                pass
-            if not node.isParent():
-                print "%d: %s"%(os.getpid(), node.getLineage())
-
-            notforked = True
-            i = 0
-            for c in node:
-                if i == 0:
-                    myidx = 0
-                else:
-                    if notforked:
-                       # print "%d: FORKING!"%(os.getpid())
-                        newpid = os.fork()
-                        if newpid == 0:
-                            # This is the forked/child process
-                            myidx = i
-                        else:
-                            notforked = False
-                i += 1
-
-         
-            i = 0
-            for c in node:
-                if i == myidx:  
-                   # print "%d: NEXT TARGET: %s"%(os.getpid(), c)
-                   # print id(c)
-                    self.target_node = c
-                i += 1
-    
+        super(LeafVisitor, self).__init__(SimpleXmlTree.XmlTreeVisitorType.breadthfirst)
 
 
+    def get_mv_idx(self, var_n):
+        i = 0
+        for mv in self.l_mv:
+            if mv.var_n == var_n:
+                return i
+            i+=1
+        return -1
 
 
-    
-               
-
-
-
-
-
-##########################################################################################################################
-
-
-
-# BLAH
-class XXXXVisitor(SimpleXmlTree.XmlTreeVisitor):
-
-    def __init__(self, mv_bin, l_bin, outdir):
-        self.mv_bin = mv_bin
-        self.curr_l_bin = l_bin
-        self.curr_outdir = outdir
-
-        super(XXXXVisitor, self).__init__(SimpleXmlTree.XmlTreeVisitorType.depthfirst)
-
-
-
-    # IN: l_bin: a list of MetaVariable bins:
-    #            [[1, 5, "yo", ...],         
+    # IN: l_bin: a list of bins:
+    #            [[1, 5, "yo", ...],          <--- a single bin
     #             [70, 2, "blah", ...],
     #             [0, 0, "foo", ...],
     #
-    # PURPOSE: split l_bin into bins of equivalent: bin[mv_idx]
+    # Split l_bin into bins of an equivalent selected element
     #
-    # OUT: d_l_bin{ key=mv[mv_idx] } returns l_bin
+    # OUT: {  [[..],[..],...] , [[..],[..],...] , ... }
     #
-    def genBinsDict(self, l_bin, mv_idx):       
-        #node.bins = []
-        d_l_bin = {}
+    def split_l_bin(self, l_bin, idx):   
+        bins = {}
         for b in l_bin:
-            if b[mv_idx] in d_l_bin:
-                (d_l_bin[b[mv_idx]]).append(b)
+            if b[idx] in bins:
+                (bins[b[idx]]).append(b)
             else:
-                d_l_bin[b[mv_idx]] = [b]
-        return d_l_bin
+                bins[b[idx]] = [b]
+        return bins 
 
 
-    def doPreBinWork(self, mv_idx):
-        
-        # Now we are free to blow away self.data:
-        d_l_bin = self.genBinsDict(self.curr_l_bin, mv_idx)
-        
-        # FORK PROCESS len(d_l_bin) times
-        for k in d_l_bin:
-            newpid = os.fork()
-            if newpid == 0:
-                continue
-            else:
-                self.curr_l_bin = d_l_bin[k]
-                self.curr_outdir = None #fixme
-                break
+    def previsit_breadthfirst(self, node): 
+          
+        #if node.isRoot():
+        #    self.next_node = node
+
+       # print "CURRENT: %s | TARGET: %s"%(node, self.next_node)
+       # print id(node)
+       # print id(self.next_node)
+        if (node is self.next_node) or (node.isRoot()):
+           # print "%d: GOT TARGET: %s"%(os.getpid(), node)
+            
+            #    pass
+            #if not node.isParent():
+            #    print "%d: %s"%(os.getpid(), node.getLineage())
 
 
+            
+            if not node.isRoot():
+                mv_idx = self.get_mv_idx(node.getTag())
+                if node.getAttribVal('type') == 'bin':
+                    bins = self.split_l_bin(self.l_bin, mv_idx)                
+                    i = 0
+                    for k in bins:
+                        next_l_bin = bins[k]
+                        next_outdir = self.outdir + "/%s_bin%d"%(node.getTag(), i)
+                        if i < (len(bins) - 1):
+                            pid = os.fork()
+                            if pid == 0:
+                                # This is the forked/child process
+                                break
+                            else:
+                                # This is the parent process (who did the fork)
+                                pass
+                        i += 1
 
-    def doPreSortWork(self, mv_idx):
-        # ASCENDING (invoke 'sorted(... , doReverse=True)' for descending order)
-        self.curr_l_bin = sorted(self.curr_l_bin, key=operator.itemgetter(mv_idx))
+                elif node.getAttribVal('type') == 'sort':                    
+                    next_l_bin = sorted(self.l_bin, key=operator.itemgetter(mv_idx))
+                    next_outdir = self.outdir + "/%s_sorted"%(node.getTag())
 
 
-    def previsit_depthfirst(self, node): 
-        if not node.isRoot():
-           # print "PRE: %s"%(node)
-            mv_idx = self.mv_bin.get_mv_idx(node.getTag())
-            if mv_idx < 0:
-                raise ValueError("Error: unknown meta-var: %s"%(node.getTag()))            
+            # Node is parent:
+            if node.isParent():
+                #print "%d: PARENT: %s"%(os.getpid(), node)
 
-            for a in node.getAttrib():                                                  
-                if a == 'type':
-                    a_v = node.getAttribVal(a)
-                    if a_v == 'bin':                       
-                        self.doPreBinWork(mv_idx)
-                    elif a_v == 'sort':
-                        self.doPreSortWork(mv_idx)
+               
+                haveForked = False
+                i = 0
+                for c in node:
+                    if i == 0:
+                        idx = 0
                     else:
-                        raise ValueError("Error: unsupported xml attribute value: type='%s'"%(a_v))
-                   
+                        if not haveForked:
+                           # print "%d: FORKING!"%(os.getpid())
+                            pid = os.fork()
+                            if pid == 0:
+                                # This is the forked/child process
+                                idx = i
+                            else:
+                                # This is the parent process (who did the fork)
+                                haveForked = True
+                    i += 1
+         
+                i = 0
+                for c in node:
+                    if i == idx:  
+                       # print "%d: NEXT TARGET: %s"%(os.getpid(), c)
+                       # print id(c)
+                        self.next_node = c
+                    i += 1
+
+                if not node.isRoot():
+                    self.l_bin = next_l_bin
+                    self.outdir = next_outdir
+         
+            # Node is leaf:
+            else:
+                #print "%d: LEAF: %s"%(os.getpid(), node)
+
+                #print "Write: %s"%(next_outdir)
+                try:
+                    os.makedirs(next_outdir)
+                    f = open("%s/data.txt"%(next_outdir), 'w') 
+                    for b in next_l_bin:
+                        f.write("%s\n"%(self.l_mv.vals2UntokenizedStr(b)))
+                    f.close()
+                except IOError:
+                    print "Error: FIXME IOError"
+                    exit(-1)
                  
 
 
-                    #if node.isParent():
-                    #    if not a_v == 'bin':
-                    #        raise ValueError("Error: unsupported xml attribute value: %s='%s'"%(a, a_v))   
-                    #    if not self.semanticOnly:
-                    #        self.assignBins(l_rv_idx)
-                    #else:
-                    #    if not a_v == 'sort':
-                    #        raise ValueError("Error: unsupported xml attribute value: %s='%s'"%(a, a_v))   
-                    #    if not self.semanticOnly:
-                    #        self.sortBin(l_rv_idx)                 
-                else:
-                    raise ValueError("Error: unsupported xml attribute: %s"%(a))
-
-    #def postvisit_depthfirst(self, node): 
-    #    print node
-    #    pass
-
-
-
-
-# This extends the WorkerManager.WorkerManager class:
-class MyWorkerManager(WorkerManager.WorkerManager):
-
-    def __init__(self, workercount, workertype):
-        # Invoke the super (WorkerManager.WorkerManager) class constructor:
-        super(MyWorkerManager, self).__init__(workertype)
-
-        for i in range(0, workercount):
-            noun = nouns[random.randint(0, (len(nouns) - 1))]
-            adjective = adjectives[random.randint(0, (len(adjectives) - 1))]
-
-            # Create a worker:
-            myworker = MyWorker((adjective + noun))
-
-            # Schedule the worker with its work function and static args:
-            args = [random.randint(0, 100)]
-            self.scheduleWorker(myworker, myworker.work, args)
-
-    def run(self):
-
-        # Start the workers:
-        self.startWorkers()
-
-        # Join the workers:
-        if not self.joinWorkers():
-            raise AssertionError("Not all workers have completed without error.")
-
-        return self.getDuration()
-
-
-# This extends the WorkerManager.Worker class:
-class MyWorker(WorkerManager.Worker):
-
-    # 'rtargs' : run-time args (as opposed to the static args specified at schedule-time)
-    def work(self, rtargs):
-        # Mandatory:
-        self.prework()
-
-        # Insert your work here:
-        pass
-
-        # Mandatory:   
-        self.postwork(WorkerStatus.completed_success) 
-               
-    def __init__(self, identity):
-        # Invoke the super (WorkerManager.Worker) class constructor:
-        super(MyWorker, self).__init__()
-        self.identity = identity
-
 ##########################################################################################################################
 
-# A sample tree visitor implementation for debugging purposes:
+# hmmmm DEPRECATED ???
 
 # SEMANTIC CHECK ONLY
 class DataSortSpecVisitor(SimpleXmlTree.XmlTreeVisitor):

@@ -1,0 +1,7 @@
+%%%% HASHDEEP-1.0
+%%%% size,md5,filename
+## Invoked from: /media/isa/aesop/droppy/Dropbox/alig/imran/code/git/meta_vars/test/1
+## $ hashdeep -rlc md5 out
+## 
+5876,94d7e8875843e33841c660e42f87fec1,out/SRS_bin0/fullSampleIdx_sorted/data.txt
+5216,4b9a2c1b385592837f059c1bfc60a069,out/SRS_bin1/fullSampleIdx_sorted/data.txt
